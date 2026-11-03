@@ -1,0 +1,1 @@
+e2e: delete PASS comment recount test
