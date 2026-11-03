@@ -1,0 +1,59 @@
+name: merge-gate
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] 不检出 PR 代码，只读默认分支脚本和名单
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+  issue_comment: # zizmor: ignore[dangerous-triggers] 不检出 PR 代码，只读默认分支脚本和名单
+    types: [created, edited, deleted]
+  workflow_run: # zizmor: ignore[dangerous-triggers] 不检出 PR 代码，只读默认分支脚本和名单
+    # merge-gate-review-relay：审查/行内评论变化的无权限中转，fork PR 也能在此以写权限重算
+    workflows: [SBQB CI Gate, merge-gate-tests, merge-gate-review-relay]
+    types: [completed]
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: PR number
+        required: true
+        type: string
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+  checks: read
+  actions: read
+concurrency:
+  group: merge-gate-${{ github.repository }}
+  cancel-in-progress: false
+jobs:
+  merge-gate:
+    name: merge-gate
+    if: ${{ (github.event_name != 'issue_comment' || github.event.issue.pull_request != null) && github.event.pull_request.draft != true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: write
+      statuses: write
+      checks: read
+      actions: read
+    steps:
+      - name: 检出默认分支判定脚本
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.repository.default_branch }}
+      - name: 判定合并门
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SBQB_AUTO_MERGE_ENABLED: ${{ vars.SBQB_AUTO_MERGE_ENABLED }}
+          MERGE_GATE_PR_NUMBER: ${{ github.event.inputs.pr_number }}
+          MERGE_GATE_PR_TITLE: ${{ github.event.pull_request.title }}
+          MERGE_GATE_PR_BODY: ${{ github.event.pull_request.body }}
+          MERGE_GATE_HEAD_REF: ${{ github.head_ref }}
+        run: |
+          if [ ! -f .github/scripts/merge_gate.py ]; then
+            echo "默认分支尚无判定脚本（仅发生在接入本门的 PR 自身），跳过"
+            exit 0
+          fi
+          python3 .github/scripts/merge_gate.py

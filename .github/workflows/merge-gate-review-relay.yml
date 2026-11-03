@@ -1,0 +1,18 @@
+name: merge-gate-review-relay
+# 审查与行内评论事件的中转：本工作流不读 PR 内容、不检出代码、令牌无任何权限，
+# 只负责产生一次运行；merge-gate 经 workflow_run 在默认分支上下文（具备状态写权限，fork PR 亦然）重算。
+on:
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+permissions: {}
+jobs:
+  merge-gate-review-relay:
+    name: merge-gate-review-relay
+    runs-on: ubuntu-latest
+    timeout-minutes: 1
+    permissions: {}
+    steps:
+      - name: 转交合并门重算
+        run: echo "审查或行内评论有变化，由 merge-gate 经 workflow_run 重算"
